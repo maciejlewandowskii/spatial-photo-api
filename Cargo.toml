@@ -28,3 +28,4 @@ lambda_runtime = "0.13"
 libheif-rs = "2.1"
 strum = { version = "0.26", features = ["derive"] }
 validator = { version = "0.18", features = ["derive"] }
+dotenvy = "0.15"

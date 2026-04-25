@@ -17,6 +17,9 @@ mod docs;
 mod error;
 mod guards;
 
+#[cfg(test)]
+mod tests;
+
 lazy_static! {
     static ref SERVER_UPTIME: OffsetDateTime = OffsetDateTime::now_utc();
     static ref SERVER_LIMITS: LimitsInfo = rocket::Config::figment()
@@ -27,15 +30,31 @@ lazy_static! {
 
 #[rocket::main]
 async fn main() -> Result<(), LambdaError> {
-    let _ = *SERVER_UPTIME;
-    let _ = &*SERVER_LIMITS;
+    let rocket = rocket().await?;
 
-    tracing_subscriber::fmt()
+    if is_running_on_lambda() {
+        launch_rocket_on_lambda(rocket).await?;
+    } else {
+        rocket.launch().await.map_err(|e| LambdaError::from(format!("server launch failed: {e}")))?;
+    }
+
+    Ok(())
+}
+
+pub async fn rocket() -> Result<rocket::Rocket<rocket::Build>, LambdaError> {
+    dotenvy::dotenv().ok();
+
+    let subscriber = tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
+        );
+
+    if is_running_on_lambda() {
+        subscriber.json().init();
+    } else {
+        let _ = subscriber.try_init();
+    }
 
     let db_url =
         std::env::var("DATABASE_URL").map_err(|_| LambdaError::from("DATABASE_URL environment variable must be set"))?;
@@ -67,7 +86,17 @@ async fn main() -> Result<(), LambdaError> {
         queue_url,
     };
 
-    let rocket = rocket::build()
+    let mut figment = rocket::Config::figment();
+
+    if !is_running_on_lambda() {
+        if std::path::Path::new("crates/api/templates").exists() {
+            figment = figment.merge(("template_dir", "crates/api/templates"));
+        } else if std::path::Path::new("templates").exists() {
+            figment = figment.merge(("template_dir", "templates"));
+        }
+    }
+
+    Ok(rocket::custom(figment)
         .manage(pool)
         .manage(JwtSecret(jwt_secret))
         .manage(s3_state)
@@ -75,13 +104,5 @@ async fn main() -> Result<(), LambdaError> {
         .attach(Template::fairing())
         .mount("/", api::ui_routes())
         .mount("/", api::openapi_routes())
-        .mount("/docs", routes![scalar_docs_ui]);
-
-    if is_running_on_lambda() {
-        launch_rocket_on_lambda(rocket).await?;
-    } else {
-        rocket.launch().await.map_err(|e| LambdaError::from(format!("server launch failed: {e}")))?;
-    }
-
-    Ok(())
+        .mount("/docs", routes![scalar_docs_ui]))
 }

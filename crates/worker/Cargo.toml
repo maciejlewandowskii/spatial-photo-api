@@ -29,6 +29,7 @@ aws-sigv4 = { workspace = true }
 aws-smithy-runtime-api = { version = "1", features = ["client"] }
 reqwest = { workspace = true }
 urlencoding = "2"
+dotenvy = { workspace = true }
 libheif-rs = { workspace = true }
 ort = { version = "2.0.0-rc.12", features = ["ndarray"] }
 ndarray = "0.17"

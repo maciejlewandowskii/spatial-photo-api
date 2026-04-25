@@ -105,18 +105,35 @@ npm install
 
 ### 2. Local Infrastructure
 
-For local development, you'll need a PostgreSQL instance and AWS credentials with access to S3, SQS, and DynamoDB.
+The easiest way to set up the required infrastructure (PostgreSQL, S3, SQS, DynamoDB) is using Docker Compose:
+
+```bash
+# Start all local services
+docker-compose up -d
+```
+
+This will start:
+- **PostgreSQL**: Available at `localhost:5432`
+- **LocalStack**: Emulating S3, SQS, and DynamoDB at `localhost:4566`
+
+A setup script (`scripts/init-localstack.sh`) runs automatically to create the required buckets, queues, and tables.
 
 Create a `.env` file in the project root:
 
 ```env
-DATABASE_URL=postgres://user:pass@localhost:5432/spatial_api
+DATABASE_URL=postgres://dev:dev@localhost:5432/spatial_api
 JWT_SECRET=your-local-secret
-S3_BUCKET=your-test-bucket
-SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/JobQueue.fifo
+S3_BUCKET=uploads
+SQS_QUEUE_URL=http://sqs.us-east-1.localhost.localstack.cloud:4566/000000000000/JobQueue
 DYNAMODB_TABLE=WsConnections
-WEBSOCKET_API_ENDPOINT=https://your-ws-api.execute-api.us-east-1.amazonaws.com/prod
+WEBSOCKET_API_ENDPOINT=http://localhost:4566
+AWS_ACCESS_KEY_ID=test
+AWS_SECRET_ACCESS_KEY=test
+AWS_REGION=us-east-1
+AWS_ENDPOINT_URL=http://localhost:4566
 ```
+
+*Note: The AWS SDK for Rust automatically respects the `AWS_ENDPOINT_URL` variable to route requests to LocalStack.*
 
 ### 3. Running Locally
 
@@ -148,5 +165,4 @@ cargo test --workspace
 ### 5. API Documentation
 
 When running locally, the OpenAPI documentation is available at:
-- Swagger UI: `http://localhost:8000/docs`
-- Scalar UI: `http://localhost:8000/docs` (custom UI integration)
+- Scalar UI: `http://localhost:8000/docs`

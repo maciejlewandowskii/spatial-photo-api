@@ -79,6 +79,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-s3",
  "aws-sdk-sqs",
+ "dotenvy",
  "image",
  "lambda-web",
  "lazy_static",
@@ -5999,6 +6000,7 @@ version = "0.1.0"
 dependencies = [
  "aws-config",
  "aws-sdk-dynamodb",
+ "dotenvy",
  "lambda_runtime 0.13.0",
  "serde",
  "serde_json",
@@ -6423,6 +6425,7 @@ dependencies = [
  "aws-sigv4",
  "aws-smithy-runtime-api",
  "bytemuck",
+ "dotenvy",
  "image",
  "lambda_runtime 0.13.0",
  "libheif-rs",

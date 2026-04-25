@@ -98,6 +98,8 @@ async fn handler(
 
 #[tokio::main]
 async fn main() -> Result<(), LambdaError> {
+    dotenvy::dotenv().ok();
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
