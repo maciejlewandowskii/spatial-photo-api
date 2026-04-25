@@ -2,7 +2,19 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AppError {
-    #[error("authentication failed")]
+    #[error("database error: {0}")]
+    Database(#[from] sqlx::Error),
+
+    #[error("invalid credentials")]
+    InvalidCredentials,
+
+    #[error("invalid token")]
+    InvalidToken,
+
+    #[error("token expired")]
+    TokenExpired,
+
+    #[error("authentication required")]
     Unauthorized,
 
     #[error("forbidden")]

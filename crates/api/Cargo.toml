@@ -14,9 +14,14 @@ rocket_okapi = "0.9"
 rust-embed = "8"
 lazy_static = "1.5"
 serde = { workspace = true }
+serde_json = { workspace = true }
 schemars = "0.8"
 sysinfo = "0.33"
 lambda-web = { version = "0.2", features = ["rocket05"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+time = { workspace = true }
+sqlx = { workspace = true }
+argon2 = "0.5"
