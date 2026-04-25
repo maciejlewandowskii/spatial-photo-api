@@ -1,0 +1,5 @@
+/target
+.idea/
+.env
+*.env.local
+/crates/worker/models/

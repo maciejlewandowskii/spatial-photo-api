@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Scalar API Reference</title>
+        <meta charset="utf-8"/>
+        <meta
+                name="viewport"
+                content="width=device-width, initial-scale=1"/>
+    </head>
+
+    <body>
+        <div id="app"></div>
+
+        <!-- Load the Script -->
+        <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+
+        <!-- Initialize the Scalar API Reference -->
+        <script>
+            Scalar.createApiReference('#app', {
+                url: '/openapi.json',
+                // Avoid CORS issues
+                proxyUrl: 'https://proxy.scalar.com',
+                showDeveloperTools: "never",
+                "defaultOpenFirstTag": false,
+                "showOperationId": true,
+                "hideClientButton": true,
+                "theme": "default",
+                "showSidebar": true,
+                "showToolbar": "localhost",
+                "operationTitleSource": "summary",
+                "persistAuth": false,
+                "telemetry": true,
+                "externalUrls": {
+                    // TODO: change url to prod
+                    "dashboardUrl": "https://dashboard.scalar.com",
+                    "registryUrl": "https://registry.scalar.com",
+                    "proxyUrl": "https://proxy.scalar.com",
+                    "apiBaseUrl": "https://api.scalar.com"
+                },
+                "layout": "modern",
+                "isEditable": false,
+                "isLoading": false,
+                "hideModels": false,
+                "documentDownloadType": "both",
+                "hideTestRequestButton": false,
+                "hideSearch": false,
+                "hideDarkModeToggle": false,
+                "withDefaultFonts": true,
+                "defaultOpenAllTags": false,
+                "expandAllModelSections": false,
+                "expandAllResponses": false,
+                "orderSchemaPropertiesBy": "alpha",
+                "orderRequiredPropertiesFirst": true,
+                "default": false,
+                "slug": "api",
+                "title": "REST API"
+            })
+        </script>
+    </body>
+</html>
