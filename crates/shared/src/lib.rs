@@ -4,3 +4,4 @@ pub mod error;
 pub mod jobs;
 pub mod queue;
 pub mod storage;
+pub mod ws;

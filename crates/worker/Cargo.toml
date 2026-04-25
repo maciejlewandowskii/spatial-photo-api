@@ -10,6 +10,20 @@ path = "src/main.rs"
 [dependencies]
 shared = { path = "../shared" }
 tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+time = { workspace = true }
+sqlx = { workspace = true }
+lambda_runtime = { workspace = true }
+aws-config = { workspace = true }
+aws-sdk-sqs = { workspace = true }
+aws-sdk-dynamodb = { workspace = true }
+aws-credential-types = { workspace = true }
+aws-sigv4 = { workspace = true }
+aws-smithy-runtime-api = { version = "1", features = ["client"] }
+reqwest = { workspace = true }
+urlencoding = "2"
