@@ -1,10 +1,19 @@
+use aws_credential_types::provider::ProvideCredentials;
 use lambda_runtime::{service_fn, Error as LambdaError, LambdaEvent};
+use reqwest::Client as HttpClient;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
 use shared::jobs::JobMessage;
-use tracing::instrument;
 
+mod depth;
+mod encode;
+mod pipeline;
+mod s3_helpers;
+mod warp;
 mod ws_push;
+
+use pipeline::AppState;
+use ws_push::WsPusher;
 
 #[derive(Debug, Deserialize)]
 struct SqsEvent {
@@ -17,31 +26,13 @@ struct SqsRecord {
     body: String,
 }
 
-struct Config {
-    db_url: String,
-    s3_bucket: String,
-    ddb_table: String,
-    ws_api_endpoint: String,
-    model_path: String,
-}
-
-#[instrument(skip_all, fields(job_id))]
-async fn process_job(
-    msg: JobMessage,
-    _cfg: &Config,
-) -> Result<(), shared::error::AppError> {
-    tracing::Span::current().record("job_id", msg.job_id.to_string());
-    // Phases 4–5: depth estimation, stereo synthesis, inpainting, HEIF encoding
-    tracing::info!(job_type = ?msg.job_type, "processing job");
-    Ok(())
-}
-
-async fn handler(event: LambdaEvent<SqsEvent>, cfg: &Config) -> Result<JsonValue, LambdaError> {
+async fn handler(event: LambdaEvent<SqsEvent>, state: &AppState) -> Result<JsonValue, LambdaError> {
     for record in &event.payload.records {
         match serde_json::from_str::<JobMessage>(&record.body) {
             Ok(msg) => {
-                if let Err(e) = process_job(msg, cfg).await {
-                    tracing::error!(error = %e, "job processing failed");
+                let job_id = msg.job_id;
+                if let Err(e) = pipeline::process(msg, state).await {
+                    tracing::error!(job_id = %job_id, error = %e, "job processing failed");
                 }
             }
             Err(e) => {
@@ -62,14 +53,62 @@ async fn main() -> Result<(), LambdaError> {
         .json()
         .init();
 
-    let cfg = Config {
-        db_url: std::env::var("DATABASE_URL").expect("DATABASE_URL must be set"),
-        s3_bucket: std::env::var("S3_BUCKET").expect("S3_BUCKET must be set"),
-        ddb_table: std::env::var("DYNAMODB_TABLE").expect("DYNAMODB_TABLE must be set"),
-        ws_api_endpoint: std::env::var("WEBSOCKET_API_ENDPOINT")
-            .expect("WEBSOCKET_API_ENDPOINT must be set"),
-        model_path: std::env::var("MODEL_PATH").unwrap_or_else(|_| "/opt/model.onnx".into()),
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let s3_bucket = std::env::var("S3_BUCKET").expect("S3_BUCKET must be set");
+    let ddb_table = std::env::var("DYNAMODB_TABLE").expect("DYNAMODB_TABLE must be set");
+    let ws_api_endpoint =
+        std::env::var("WEBSOCKET_API_ENDPOINT").expect("WEBSOCKET_API_ENDPOINT must be set");
+    let depth_model_path =
+        std::env::var("DEPTH_MODEL_PATH").unwrap_or_else(|_| "/opt/depth_model.onnx".into());
+    let lama_model_path =
+        std::env::var("LAMA_MODEL_PATH").unwrap_or_else(|_| "/opt/lama_model.onnx".into());
+    let region = std::env::var("AWS_REGION").unwrap_or_else(|_| "us-east-1".into());
+
+    let pool = shared::db::PgPool::connect(&db_url)
+        .await
+        .expect("failed to connect to database");
+
+    let aws_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+
+    let credentials = aws_config
+        .credentials_provider()
+        .expect("no credentials provider in aws config")
+        .provide_credentials()
+        .await
+        .expect("failed to resolve AWS credentials");
+
+    let s3 = aws_sdk_s3::Client::new(&aws_config);
+    let sqs = aws_sdk_sqs::Client::new(&aws_config);
+    let ddb = aws_sdk_dynamodb::Client::new(&aws_config);
+
+    let pusher = WsPusher::new(
+        HttpClient::new(),
+        credentials,
+        region,
+        ws_api_endpoint,
+        ddb.clone(),
+        ddb_table.clone(),
+    );
+
+    let depth_estimator =
+        depth::DepthEstimator::load(&depth_model_path).expect("failed to load depth model");
+
+    let stereo_generator =
+        warp::StereoGenerator::load(&lama_model_path).expect("failed to load lama model");
+
+    let state = AppState {
+        pool,
+        s3,
+        s3_bucket,
+        ddb,
+        ddb_table,
+        pusher,
+        depth_estimator,
+        stereo_generator,
     };
 
-    lambda_runtime::run(service_fn(|event| handler(event, &cfg))).await
+    // SQS client kept for potential future use (dead-letter, visibility timeout extension)
+    let _ = sqs;
+
+    lambda_runtime::run(service_fn(|event| handler(event, &state))).await
 }

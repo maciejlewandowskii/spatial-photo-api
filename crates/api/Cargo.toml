@@ -18,6 +18,7 @@ serde_json = { workspace = true }
 schemars = "0.8"
 sysinfo = "0.33"
 lambda-web = { version = "0.2", features = ["rocket05"] }
+rocket_dyn_templates = { version = "0.1", features = ["tera"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

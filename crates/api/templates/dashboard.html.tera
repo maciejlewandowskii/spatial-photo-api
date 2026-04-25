@@ -1,0 +1,35 @@
+{% extends "layout" %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+    <!-- Upload Section -->
+    <div class="md:col-span-1">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-bold mb-4">New Spatial Photo</h2>
+            <form hx-post="/jobs/convert" hx-encoding="multipart/form-data" hx-target="#job-list" hx-swap="afterbegin">
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2" for="image">Choose Image</label>
+                    <input class="w-full" type="file" id="image" name="image" accept="image/*" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 mb-2" for="baseline">Baseline (mm)</label>
+                    <input class="w-full p-2 border rounded" type="number" id="baseline" name="baseline_mm" value="65" step="1">
+                </div>
+                <button class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-bold" type="submit">
+                    Generate
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Job List Section -->
+    <div class="md:col-span-2">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-xl font-bold mb-4">Your Jobs</h2>
+            <div id="job-list" hx-get="/jobs/list/html" hx-trigger="load, every 5s">
+                <p class="text-gray-500 italic">Loading jobs...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -2,7 +2,6 @@ use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
-use rocket::http::Status;
 use rocket::serde::json::Json;
 use rocket::State;
 use serde::{Deserialize, Serialize};
@@ -139,17 +138,27 @@ async fn issue_auth_response(
 
 // ── Handlers ────────────────────────────────────────────────────────────────
 
+use rocket::http::{Cookie, CookieJar, Status};
+use rocket::response::Redirect;
+
 #[post("/register", data = "<body>")]
 pub async fn register(
     body: Json<RegisterRequest>,
     pool: &State<PgPool>,
     jwt: &State<JwtSecret>,
+    cookies: &CookieJar<'_>,
 ) -> Result<Json<AuthResponse>, ApiError> {
     validate_email(&body.email)?;
     validate_password(&body.password)?;
     let hash = hash_password(&body.password)?;
     let user = db::user::create(pool, &body.email.to_lowercase(), &hash).await?;
     let resp = issue_auth_response(pool, user.id, &user.email, &jwt.0).await?;
+    
+    cookies.add(Cookie::build(("access_token", resp.access_token.clone()))
+        .path("/")
+        .http_only(true)
+        .build());
+    
     Ok(Json(resp))
 }
 
@@ -158,6 +167,7 @@ pub async fn login(
     body: Json<LoginRequest>,
     pool: &State<PgPool>,
     jwt: &State<JwtSecret>,
+    cookies: &CookieJar<'_>,
 ) -> Result<Json<AuthResponse>, ApiError> {
     let user = db::user::find_by_email(pool, &body.email.to_lowercase())
         .await?
@@ -168,6 +178,12 @@ pub async fn login(
     }
 
     let resp = issue_auth_response(pool, user.id, &user.email, &jwt.0).await?;
+    
+    cookies.add(Cookie::build(("access_token", resp.access_token.clone()))
+        .path("/")
+        .http_only(true)
+        .build());
+    
     Ok(Json(resp))
 }
 
@@ -196,15 +212,23 @@ pub async fn refresh(
     }))
 }
 
+#[get("/logout")]
+pub async fn logout_get(cookies: &CookieJar<'_>) -> Redirect {
+    cookies.remove(Cookie::from("access_token"));
+    Redirect::to("/login")
+}
+
 #[post("/logout", data = "<body>")]
 pub async fn logout(
     body: Json<LogoutRequest>,
     pool: &State<PgPool>,
+    cookies: &CookieJar<'_>,
 ) -> Result<Status, ApiError> {
     let hash = hash_secret(&body.refresh_token);
     if let Some(rt) = db::refresh_token::find_by_hash(pool, &hash).await? {
         db::refresh_token::delete(pool, rt.id).await?;
     }
+    cookies.remove(Cookie::from("access_token"));
     Ok(Status::NoContent)
 }
 

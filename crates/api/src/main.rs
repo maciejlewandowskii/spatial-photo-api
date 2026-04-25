@@ -4,6 +4,7 @@ extern crate rocket;
 use lambda_web::{is_running_on_lambda, launch_rocket_on_lambda, LambdaError};
 use lazy_static::lazy_static;
 use rocket::time::OffsetDateTime;
+use rocket_dyn_templates::Template;
 use shared::db::PgPool;
 
 use crate::api::health_check::LimitsInfo;
@@ -71,6 +72,8 @@ async fn main() -> Result<(), LambdaError> {
         .manage(JwtSecret(jwt_secret))
         .manage(s3_state)
         .manage(sqs_state)
+        .attach(Template::fairing())
+        .mount("/", api::ui_routes())
         .mount("/", api::openapi_routes())
         .mount("/auth", api::auth_routes())
         .mount("/jobs", api::job_routes())

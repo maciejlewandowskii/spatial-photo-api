@@ -2,6 +2,7 @@
 name = "worker"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [[bin]]
 name = "worker"
@@ -20,6 +21,7 @@ time = { workspace = true }
 sqlx = { workspace = true }
 lambda_runtime = { workspace = true }
 aws-config = { workspace = true }
+aws-sdk-s3 = { workspace = true }
 aws-sdk-sqs = { workspace = true }
 aws-sdk-dynamodb = { workspace = true }
 aws-credential-types = { workspace = true }
@@ -27,3 +29,8 @@ aws-sigv4 = { workspace = true }
 aws-smithy-runtime-api = { version = "1", features = ["client"] }
 reqwest = { workspace = true }
 urlencoding = "2"
+libheif-rs = { workspace = true }
+ort = { version = "2.0.0-rc.12", features = ["ndarray"] }
+ndarray = "0.17"
+image = { version = "0.25", features = ["jpeg", "png", "webp", "tiff"] }
+bytemuck = { version = "1", features = ["derive"] }

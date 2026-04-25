@@ -350,6 +350,37 @@ pub async fn cancel_job(
     }
 }
 
+#[post("/compose?<max_disparity>&<baseline_mm>&<horizontal_fov>", data = "<data>")]
+pub async fn submit_compose(
+    data: Data<'_>,
+    max_disparity: Option<u32>,
+    baseline_mm: Option<f32>,
+    horizontal_fov: Option<f32>,
+    user: AuthUser,
+    pool: &State<PgPool>,
+    s3: &State<S3State>,
+    sqs: &State<SqsState>,
+) -> Result<Json<JobResponse>, ApiError> {
+    // multipart upload for two images
+    // For now, let's keep it simple and assume a specialized multipart handler
+    // Or just stub it as it's more complex than single image
+    Err(AppError::Internal("multipart compose not yet implemented".into()).into())
+}
+
+#[post("/depth-compose?<max_disparity>&<baseline_mm>&<horizontal_fov>", data = "<data>")]
+pub async fn submit_depth_compose(
+    data: Data<'_>,
+    max_disparity: Option<u32>,
+    baseline_mm: Option<f32>,
+    horizontal_fov: Option<f32>,
+    user: AuthUser,
+    pool: &State<PgPool>,
+    s3: &State<S3State>,
+    sqs: &State<SqsState>,
+) -> Result<Json<JobResponse>, ApiError> {
+    Err(AppError::Internal("multipart depth-compose not yet implemented".into()).into())
+}
+
 #[get("/<id>/download")]
 pub async fn download_result(
     id: &str,

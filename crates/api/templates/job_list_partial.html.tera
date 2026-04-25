@@ -1,0 +1,36 @@
+<div class="space-y-4">
+    {% for job in jobs %}
+    <div class="border rounded p-4 flex justify-between items-center">
+        <div>
+            <p class="font-bold capitalize">{{ job.job_type }} Job</p>
+            <p class="text-sm text-gray-500">{{ job.id }}</p>
+            <div class="mt-2 flex items-center">
+                <span class="px-2 py-1 rounded text-xs font-bold mr-2 
+                    {% if job.status == 'complete' %}bg-green-100 text-green-700
+                    {% elif job.status == 'failed' %}bg-red-100 text-red-700
+                    {% elif job.status == 'processing' %}bg-blue-100 text-blue-700
+                    {% else %}bg-gray-100 text-gray-700{% endif %}">
+                    {{ job.status }}
+                </span>
+                {% if job.status == 'processing' %}
+                <div class="w-24 bg-gray-200 rounded-full h-1.5 mr-2">
+                    <div class="bg-blue-600 h-1.5 rounded-full" style="width: {{ job.progress }}%"></div>
+                </div>
+                <span class="text-xs">{{ job.progress }}%</span>
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            {% if job.status == 'complete' %}
+            <a href="/jobs/{{ job.id }}/download" class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700">
+                Download
+            </a>
+            {% elif job.status == 'failed' %}
+            <span class="text-red-500 text-sm" title="{{ job.error }}">Error</span>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-center py-8 italic">No jobs found. Upload an image to get started!</p>
+    {% endfor %}
+</div>
