@@ -7,17 +7,19 @@ use shared::auth::{generate_api_key, hash_secret};
 use time::OffsetDateTime;
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
+use rocket_okapi::openapi;
+use schemars::JsonSchema;
 
 use crate::error::ApiError;
 use crate::guards::AuthUser;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 pub struct CreateKeyRequest {
     pub name: String,
     pub expires_at: Option<i64>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 pub struct ApiKeyResponse {
     pub id: String,
     pub name: String,
@@ -28,6 +30,7 @@ pub struct ApiKeyResponse {
     pub created_at: i64,
 }
 
+#[openapi(tag = "Auth")]
 #[post("/keys", data = "<body>")]
 pub async fn create(
     body: Json<CreateKeyRequest>,
@@ -59,6 +62,7 @@ pub async fn create(
     }))
 }
 
+#[openapi(tag = "Auth")]
 #[get("/keys")]
 pub async fn list(
     user: AuthUser,
@@ -79,6 +83,7 @@ pub async fn list(
     Ok(Json(resp))
 }
 
+#[openapi(tag = "Auth")]
 #[delete("/keys/<id>")]
 pub async fn delete(
     id: &str,

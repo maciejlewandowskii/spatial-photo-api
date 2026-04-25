@@ -4,17 +4,20 @@ use rocket::http::{Cookie, CookieJar};
 use shared::db::{self, PgPool};
 use shared::error::AppError;
 use serde::Deserialize;
+use rocket_okapi::openapi;
+use schemars::JsonSchema;
 
 use crate::error::ApiError;
 use crate::guards::JwtSecret;
 use super::utils::{verify_password, issue_auth_response, AuthResponse};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
 }
 
+#[openapi(tag = "Auth")]
 #[post("/login", data = "<body>")]
 pub async fn handler(
     body: Json<LoginRequest>,

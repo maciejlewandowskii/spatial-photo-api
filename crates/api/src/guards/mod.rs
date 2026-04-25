@@ -5,16 +5,41 @@ use shared::auth::{decode_access_token, hash_secret};
 use shared::db::{self, PgPool};
 use shared::error::AppError;
 use uuid::Uuid;
-
 use serde::Serialize;
+use rocket_okapi::request::{OpenApiFromRequest, RequestHeaderInput};
+use rocket_okapi::gen::OpenApiGenerator;
+use rocket_okapi::okapi::openapi3::SecurityRequirement;
 
 pub struct JwtSecret(pub String);
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, schemars::JsonSchema)]
 pub struct AuthUser {
     pub user_id: Uuid,
     pub email: String,
     pub tokens: i32,
+}
+
+impl<'r> OpenApiFromRequest<'r> for AuthUser {
+    fn from_request_input(
+        _gen: &mut OpenApiGenerator,
+        _name: String,
+        _required: bool,
+    ) -> rocket_okapi::Result<RequestHeaderInput> {
+        let mut security_requirement = SecurityRequirement::new();
+        security_requirement.insert("BearerAuth".to_owned(), Vec::new());
+        Ok(RequestHeaderInput::Security(
+            "BearerAuth".to_owned(),
+            rocket_okapi::okapi::openapi3::SecurityScheme {
+                description: Some("Bearer Token or API Key (X-API-Key)".to_owned()),
+                data: rocket_okapi::okapi::openapi3::SecuritySchemeData::Http {
+                    scheme: "bearer".to_owned(),
+                    bearer_format: Some("JWT".to_owned()),
+                },
+                extensions: rocket_okapi::okapi::Map::new(),
+            },
+            security_requirement,
+        ))
+    }
 }
 
 #[rocket::async_trait]

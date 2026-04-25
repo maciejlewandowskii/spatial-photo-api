@@ -23,8 +23,8 @@ pub async fn store_connection(
 ) -> Result<(), AppError> {
     let ttl = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("system clock before Unix epoch")
-        .as_secs()
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
         + TTL_SECS;
 
     let mut item = HashMap::new();

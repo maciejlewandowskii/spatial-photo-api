@@ -25,8 +25,8 @@ pub fn encode_access_token(
 ) -> Result<String, AppError> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("system clock before Unix epoch")
-        .as_secs() as usize;
+        .map(|d| d.as_secs())
+        .unwrap_or(0) as usize;
 
     let claims = Claims {
         sub: user_id.to_string(),

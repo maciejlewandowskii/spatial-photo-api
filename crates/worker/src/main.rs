@@ -53,11 +53,11 @@ async fn main() -> Result<(), LambdaError> {
         .json()
         .init();
 
-    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let s3_bucket = std::env::var("S3_BUCKET").expect("S3_BUCKET must be set");
-    let ddb_table = std::env::var("DYNAMODB_TABLE").expect("DYNAMODB_TABLE must be set");
+    let db_url = std::env::var("DATABASE_URL").map_err(|_| LambdaError::from("DATABASE_URL must be set"))?;
+    let s3_bucket = std::env::var("S3_BUCKET").map_err(|_| LambdaError::from("S3_BUCKET must be set"))?;
+    let ddb_table = std::env::var("DYNAMODB_TABLE").map_err(|_| LambdaError::from("DYNAMODB_TABLE must be set"))?;
     let ws_api_endpoint =
-        std::env::var("WEBSOCKET_API_ENDPOINT").expect("WEBSOCKET_API_ENDPOINT must be set");
+        std::env::var("WEBSOCKET_API_ENDPOINT").map_err(|_| LambdaError::from("WEBSOCKET_API_ENDPOINT must be set"))?;
     let depth_model_path =
         std::env::var("DEPTH_MODEL_PATH").unwrap_or_else(|_| "/opt/depth_model.onnx".into());
     let lama_model_path =
@@ -66,16 +66,16 @@ async fn main() -> Result<(), LambdaError> {
 
     let pool = shared::db::PgPool::connect(&db_url)
         .await
-        .expect("failed to connect to database");
+        .map_err(|e| LambdaError::from(format!("failed to connect to database: {e}")))?;
 
     let aws_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
 
     let credentials = aws_config
         .credentials_provider()
-        .expect("no credentials provider in aws config")
+        .ok_or_else(|| LambdaError::from("no credentials provider in aws config"))?
         .provide_credentials()
         .await
-        .expect("failed to resolve AWS credentials");
+        .map_err(|e| LambdaError::from(format!("failed to resolve AWS credentials: {e}")))?;
 
     let s3 = aws_sdk_s3::Client::new(&aws_config);
     let sqs = aws_sdk_sqs::Client::new(&aws_config);
@@ -91,17 +91,17 @@ async fn main() -> Result<(), LambdaError> {
     );
 
     let depth_estimator =
-        depth::DepthEstimator::load(&depth_model_path).expect("failed to load depth model");
+        depth::DepthEstimator::load(&depth_model_path)
+            .map_err(|e| LambdaError::from(format!("failed to load depth model: {e}")))?;
 
     let stereo_generator =
-        warp::StereoGenerator::load(&lama_model_path).expect("failed to load lama model");
+        warp::StereoGenerator::load(&lama_model_path)
+            .map_err(|e| LambdaError::from(format!("failed to load lama model: {e}")))?;
 
     let state = AppState {
         pool,
         s3,
         s3_bucket,
-        ddb,
-        ddb_table,
         pusher,
         depth_estimator,
         stereo_generator,

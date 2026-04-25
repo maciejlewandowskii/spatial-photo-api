@@ -38,22 +38,22 @@ async fn main() -> Result<(), LambdaError> {
         .init();
 
     let db_url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set");
+        std::env::var("DATABASE_URL").map_err(|_| LambdaError::from("DATABASE_URL environment variable must be set"))?;
     let jwt_secret =
-        std::env::var("JWT_SECRET").expect("JWT_SECRET environment variable must be set");
+        std::env::var("JWT_SECRET").map_err(|_| LambdaError::from("JWT_SECRET environment variable must be set"))?;
     let s3_bucket =
-        std::env::var("S3_BUCKET").expect("S3_BUCKET environment variable must be set");
+        std::env::var("S3_BUCKET").map_err(|_| LambdaError::from("S3_BUCKET environment variable must be set"))?;
     let queue_url =
-        std::env::var("SQS_QUEUE_URL").expect("SQS_QUEUE_URL environment variable must be set");
+        std::env::var("SQS_QUEUE_URL").map_err(|_| LambdaError::from("SQS_QUEUE_URL environment variable must be set"))?;
 
     let pool = PgPool::connect(&db_url)
         .await
-        .expect("failed to connect to database");
+        .map_err(|e| LambdaError::from(format!("failed to connect to database: {e}")))?;
 
     sqlx::migrate!("../shared/migrations")
         .run(&pool)
         .await
-        .expect("database migration failed");
+        .map_err(|e| LambdaError::from(format!("database migration failed: {e}")))?;
 
     tracing::info!("database ready");
 
@@ -75,15 +75,12 @@ async fn main() -> Result<(), LambdaError> {
         .attach(Template::fairing())
         .mount("/", api::ui_routes())
         .mount("/", api::openapi_routes())
-        .mount("/auth", api::auth_routes())
-        .mount("/jobs", api::job_routes())
-        .mount("/tokens", api::token_routes())
         .mount("/docs", routes![scalar_docs_ui]);
 
     if is_running_on_lambda() {
         launch_rocket_on_lambda(rocket).await?;
     } else {
-        rocket.launch().await.expect("server launch failed");
+        rocket.launch().await.map_err(|e| LambdaError::from(format!("server launch failed: {e}")))?;
     }
 
     Ok(())

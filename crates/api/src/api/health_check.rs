@@ -57,9 +57,9 @@ pub(crate) struct ServerStatsResponse {
 
 #[openapi(tag = "Health Check")]
 #[get("/stats")]
-pub(crate) fn stats() -> Json<ServerStatsResponse> {
+pub(crate) fn stats() -> Result<Json<ServerStatsResponse>, rocket::http::Status> {
     let (cpu_usage, memory_usage) = {
-        let mut sys = SYS.lock().unwrap();
+        let mut sys = SYS.lock().map_err(|_| rocket::http::Status::InternalServerError)?;
         sys.refresh_cpu_usage();
         sys.refresh_memory();
         let cpu = sys.global_cpu_usage();
@@ -81,13 +81,13 @@ pub(crate) fn stats() -> Json<ServerStatsResponse> {
         0.0
     };
 
-    Json(ServerStatsResponse {
+    Ok(Json(ServerStatsResponse {
         started: SERVER_UPTIME.unix_timestamp(),
         limits: SERVER_LIMITS.clone(),
         cpu_usage,
         memory_usage,
         disk_usage,
-    })
+    }))
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]

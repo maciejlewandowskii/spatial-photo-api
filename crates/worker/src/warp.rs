@@ -1,11 +1,10 @@
-use image::{DynamicImage, GenericImageView, ImageBuffer, Luma, Rgb, RgbImage};
+use image::{DynamicImage, ImageBuffer, Luma, Rgb, RgbImage};
 use ndarray::Array4;
 use ort::{inputs, session::Session, value::Tensor};
 use shared::error::AppError;
+use std::sync::Mutex;
 
 use crate::depth::DepthMap;
-
-use std::sync::Mutex;
 
 pub struct StereoGenerator {
     lama_session: Mutex<Session>,
@@ -18,7 +17,9 @@ impl StereoGenerator {
             .commit_from_file(lama_model_path)
             .map_err(|e| AppError::Internal(format!("load lama model '{lama_model_path}': {e}")))?;
 
-        Ok(Self { lama_session: Mutex::new(lama_session) })
+        Ok(Self {
+            lama_session: Mutex::new(lama_session),
+        })
     }
 
     /// Generates a stereo pair (left, right) from a mono image and depth map.
@@ -30,7 +31,7 @@ impl StereoGenerator {
         max_disparity: f32,
     ) -> Result<(RgbImage, RgbImage), AppError> {
         let left = image.to_rgb8();
-        
+
         // 1. Warp right image using DIBR
         let (mut right_warped, mask) = self.warp_dibr(&left, depth, max_disparity);
 
@@ -49,7 +50,7 @@ impl StereoGenerator {
         let (width, height) = left.dimensions();
         let mut right = RgbImage::new(width, height);
         let mut mask = ImageBuffer::<Luma<u8>, Vec<u8>>::new(width, height);
-        
+
         // Initialise mask with 255 (hole)
         for p in mask.pixels_mut() {
             *p = Luma([255]);
@@ -81,18 +82,24 @@ impl StereoGenerator {
         (right, mask)
     }
 
-    fn inpaint(&self, image: &mut RgbImage, mask: &ImageBuffer<Luma<u8>, Vec<u8>>) -> Result<(), AppError> {
-        // LaMa expects input to be multiple of 8 or 16, typically 512x512 or similar.
-        // For simplicity, we'll resize to 512x512, inpaint, then resize back.
-        // A better approach would be tiling or using the original resolution if the model supports it.
-        
+    fn inpaint(
+        &self,
+        image: &mut RgbImage,
+        mask: &ImageBuffer<Luma<u8>, Vec<u8>>,
+    ) -> Result<(), AppError> {
         let (orig_w, orig_h) = image.dimensions();
         let target_sz = 512;
 
-        let resized_img = image::DynamicImage::ImageRgb8(image.clone())
-            .resize_exact(target_sz, target_sz, image::imageops::FilterType::Triangle);
-        let resized_mask = image::DynamicImage::ImageLuma8(mask.clone())
-            .resize_exact(target_sz, target_sz, image::imageops::FilterType::Triangle);
+        let resized_img = image::DynamicImage::ImageRgb8(image.clone()).resize_exact(
+            target_sz,
+            target_sz,
+            image::imageops::FilterType::Triangle,
+        );
+        let resized_mask = image::DynamicImage::ImageLuma8(mask.clone()).resize_exact(
+            target_sz,
+            target_sz,
+            image::imageops::FilterType::Triangle,
+        );
 
         let img_rgb = resized_img.to_rgb8();
         let mask_luma = resized_mask.to_luma8();
@@ -104,9 +111,9 @@ impl StereoGenerator {
         for y in 0..target_sz {
             for x in 0..target_sz {
                 let p = img_rgb.get_pixel(x, y);
-                img_tensor[[0, 0, y as usize, x as usize]] = p[0] as f32 / 255.0;
-                img_tensor[[0, 1, y as usize, x as usize]] = p[1] as f32 / 255.0;
-                img_tensor[[0, 2, y as usize, x as usize]] = p[2] as f32 / 255.0;
+                img_tensor[[0, 0, y as usize, x as usize]] = f32::from(p[0]) / 255.0;
+                img_tensor[[0, 1, y as usize, x as usize]] = f32::from(p[1]) / 255.0;
+                img_tensor[[0, 2, y as usize, x as usize]] = f32::from(p[2]) / 255.0;
 
                 let m = mask_luma.get_pixel(x, y);
                 mask_tensor[[0, 0, y as usize, x as usize]] = if m[0] > 128 { 1.0 } else { 0.0 };
@@ -118,7 +125,10 @@ impl StereoGenerator {
         let ort_mask = Tensor::<f32>::from_array(mask_tensor)
             .map_err(|e| AppError::Internal(format!("build ort mask tensor: {e}")))?;
 
-        let mut session = self.lama_session.lock().map_err(|_| AppError::Internal("lama session lock failed".to_string()))?;
+        let mut session = self
+            .lama_session
+            .lock()
+            .map_err(|_| AppError::Internal("lama session lock failed".to_string()))?;
         let outputs = session
             .run(inputs!["image" => ort_img, "mask" => ort_mask])
             .map_err(|e| AppError::Internal(format!("lama inference: {e}")))?;
@@ -131,11 +141,13 @@ impl StereoGenerator {
         // LaMa output is [1, 3, H, W]
         let h = shape[2] as usize;
         let w = shape[3] as usize;
+        let plane_size = h * w;
 
         let inpainted_resized = RgbImage::from_fn(target_sz, target_sz, |x, y| {
-            let r_idx = 0 * h * w + y as usize * w + x as usize;
-            let g_idx = 1 * h * w + y as usize * w + x as usize;
-            let b_idx = 2 * h * w + y as usize * w + x as usize;
+            let offset = y as usize * w + x as usize;
+            let r_idx = offset;
+            let g_idx = plane_size + offset;
+            let b_idx = 2 * plane_size + offset;
             Rgb([
                 (data[r_idx].clamp(0.0, 1.0) * 255.0) as u8,
                 (data[g_idx].clamp(0.0, 1.0) * 255.0) as u8,

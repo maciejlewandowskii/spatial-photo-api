@@ -1,5 +1,3 @@
-use rocket::Route;
-
 pub mod submit_convert;
 pub mod submit_depth;
 pub mod submit_compose;
@@ -22,16 +20,3 @@ pub struct SqsState {
 
 pub const MAX_IMAGE_BYTES: u64 = 10 * 1024 * 1024;
 pub const MAX_DIMENSION: u32 = 8192;
-
-pub fn routes() -> Vec<Route> {
-    routes![
-        submit_convert::handler,
-        submit_depth::handler,
-        submit_compose::handler,
-        submit_depth_compose::handler,
-        get_job::handler,
-        list_jobs::handler,
-        cancel_job::handler,
-        download_result::handler,
-    ]
-}

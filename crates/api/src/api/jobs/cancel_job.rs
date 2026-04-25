@@ -6,7 +6,9 @@ use uuid::Uuid;
 
 use crate::error::ApiError;
 use crate::guards::AuthUser;
+use rocket_okapi::openapi;
 
+#[openapi(tag = "Jobs")]
 #[delete("/<id>")]
 pub async fn handler(
     id: &str,

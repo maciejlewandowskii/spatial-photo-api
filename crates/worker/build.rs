@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() {
     println!("cargo:rerun-if-env-changed=DOWNLOAD_MODELS");
@@ -30,7 +30,7 @@ fn main() {
     }
 }
 
-fn download_model(url: &str, dest: &PathBuf) {
+fn download_model(url: &str, dest: &Path) {
     eprintln!("build.rs: downloading model from {url} → {}", dest.display());
     let output = std::process::Command::new("curl")
         .args(["-fSL", "--create-dirs", "-o", dest.to_str().unwrap(), url])

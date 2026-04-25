@@ -61,7 +61,7 @@ impl DepthEstimator {
             .map_err(|e| AppError::Internal(format!("extract depth tensor: {e}")))?;
 
         let (_shape, data) = raw;
-        let flat: Vec<f32> = data.iter().copied().collect();
+        let flat: Vec<f32> = data.to_vec();
 
         let (min, max) = flat.iter().fold((f32::MAX, f32::MIN), |(lo, hi), &v| {
             (lo.min(v), hi.max(v))
@@ -79,12 +79,10 @@ impl DepthEstimator {
         let final_gray = scaled.to_luma8();
 
         let depth_f32: Vec<f32> =
-            final_gray.pixels().map(|p| p[0] as f32 / 255.0).collect();
+            final_gray.pixels().map(|p| f32::from(p[0]) / 255.0).collect();
 
         Ok(DepthMap {
             data: depth_f32,
-            width: orig_w,
-            height: orig_h,
             gray: final_gray,
         })
     }
@@ -93,8 +91,6 @@ impl DepthEstimator {
 pub struct DepthMap {
     /// Depth values in [0.0, 1.0]; higher = closer to camera.
     pub data: Vec<f32>,
-    pub width: u32,
-    pub height: u32,
     /// 8-bit grayscale encoding of the depth map, ready to write as PNG.
     pub gray: GrayImage,
 }

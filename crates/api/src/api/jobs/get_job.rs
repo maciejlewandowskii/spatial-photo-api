@@ -10,7 +10,9 @@ use crate::error::ApiError;
 use crate::guards::AuthUser;
 use super::utils::{job_to_response, JobResponse};
 use super::S3State;
+use rocket_okapi::openapi;
 
+#[openapi(tag = "Jobs")]
 #[get("/<id>")]
 pub async fn handler(
     id: &str,

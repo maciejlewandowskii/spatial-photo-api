@@ -6,13 +6,16 @@ use serde::Serialize;
 use crate::error::ApiError;
 use crate::guards::AuthUser;
 use super::utils::{job_to_response, JobResponse};
+use rocket_okapi::openapi;
+use schemars::JsonSchema;
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 pub struct JobListResponse {
     pub jobs: Vec<JobResponse>,
     pub total: usize,
 }
 
+#[openapi(tag = "Jobs")]
 #[get("/list?<limit>&<offset>")]
 pub async fn handler(
     limit: Option<i64>,

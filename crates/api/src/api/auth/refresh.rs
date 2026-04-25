@@ -4,22 +4,25 @@ use shared::db::{self, PgPool};
 use shared::error::AppError;
 use shared::auth::encode_access_token;
 use serde::{Deserialize, Serialize};
+use rocket_okapi::openapi;
+use schemars::JsonSchema;
 
 use crate::error::ApiError;
 use crate::guards::JwtSecret;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, JsonSchema)]
 pub struct RefreshRequest {
     pub refresh_token: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 pub struct AccessTokenResponse {
     pub access_token: String,
     pub token_type: &'static str,
     pub expires_in: u64,
 }
 
+#[openapi(tag = "Auth")]
 #[post("/refresh", data = "<body>")]
 pub async fn handler(
     body: Json<RefreshRequest>,

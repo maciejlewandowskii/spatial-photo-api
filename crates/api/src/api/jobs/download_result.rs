@@ -9,7 +9,9 @@ use uuid::Uuid;
 use crate::error::ApiError;
 use crate::guards::AuthUser;
 use super::S3State;
+use rocket_okapi::openapi;
 
+#[openapi(tag = "Jobs")]
 #[get("/<id>/download")]
 pub async fn handler(
     id: &str,

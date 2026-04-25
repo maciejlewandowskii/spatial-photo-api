@@ -107,9 +107,9 @@ async fn main() -> Result<(), LambdaError> {
         .init();
 
     let ddb_table =
-        std::env::var("DYNAMODB_TABLE").expect("DYNAMODB_TABLE environment variable must be set");
+        std::env::var("DYNAMODB_TABLE").map_err(|_| LambdaError::from("DYNAMODB_TABLE environment variable must be set"))?;
     let jwt_secret =
-        std::env::var("JWT_SECRET").expect("JWT_SECRET environment variable must be set");
+        std::env::var("JWT_SECRET").map_err(|_| LambdaError::from("JWT_SECRET environment variable must be set"))?;
 
     let aws_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
     let ddb = aws_sdk_dynamodb::Client::new(&aws_config);

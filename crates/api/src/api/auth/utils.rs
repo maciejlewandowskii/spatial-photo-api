@@ -8,8 +8,9 @@ use shared::error::AppError;
 use time::OffsetDateTime;
 use uuid::Uuid;
 use serde::Serialize;
+use schemars::JsonSchema;
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 pub struct AuthResponse {
     pub access_token: String,
     pub refresh_token: String,

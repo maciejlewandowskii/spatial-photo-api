@@ -1,6 +1,7 @@
 use std::io::Cursor;
 use image::ImageReader;
 use rocket::data::{Data, ToByteUnit};
+use rocket::form::FromForm;
 use shared::db::{self, PgPool};
 use shared::error::AppError;
 use shared::jobs::{JobMessage, JobOptions, JobType};
@@ -9,12 +10,13 @@ use shared::storage;
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
+use rocket_okapi::okapi::schemars::{self, JsonSchema};
 
 use crate::error::ApiError;
 use crate::guards::AuthUser;
 use super::{S3State, SqsState, MAX_IMAGE_BYTES, MAX_DIMENSION};
 
-#[derive(Deserialize, Default, Validate, FromForm)]
+#[derive(Deserialize, Default, Validate, FromForm, JsonSchema)]
 pub struct ConvertOptions {
     #[validate(range(min = 1, max = 100))]
     pub max_disparity: Option<u32>,
@@ -25,7 +27,7 @@ pub struct ConvertOptions {
     pub baseline_mm: Option<f32>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct JobResponse {
     pub id: String,
@@ -136,7 +138,7 @@ pub async fn dispatch_single_image(
             left_s3_key: None,
             right_s3_key: None,
             depth_s3_key: None,
-            options: serde_json::to_value(&job_options).unwrap_or_default(),
+            options: serde_json::to_value(&job_options).map_err(|e| AppError::Internal(format!("serialize options: {e}")))?,
         },
     )
     .await?;

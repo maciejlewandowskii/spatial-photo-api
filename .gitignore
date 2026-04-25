@@ -3,3 +3,4 @@
 .env
 *.env.local
 /crates/worker/models/
+infra/node_modules

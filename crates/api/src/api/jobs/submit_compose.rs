@@ -9,7 +9,9 @@ use super::utils::{ConvertOptions, JobResponse};
 use super::{S3State, SqsState};
 use validator::Validate;
 use shared::error::AppError;
+use rocket_okapi::openapi;
 
+#[openapi(tag = "Jobs")]
 #[post("/compose?<options..>", data = "<_data>")]
 pub async fn handler(
     _data: Data<'_>,

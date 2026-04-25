@@ -19,8 +19,6 @@ pub struct AppState {
     pub pool: shared::db::PgPool,
     pub s3: aws_sdk_s3::Client,
     pub s3_bucket: String,
-    pub ddb: aws_sdk_dynamodb::Client,
-    pub ddb_table: String,
     pub pusher: WsPusher,
     pub depth_estimator: DepthEstimator,
     pub stereo_generator: StereoGenerator,

@@ -10,7 +10,9 @@ use super::utils::{dispatch_single_image, ConvertOptions, JobResponse};
 use super::{S3State, SqsState};
 use validator::Validate;
 use shared::error::AppError;
+use rocket_okapi::openapi;
 
+#[openapi(tag = "Jobs")]
 #[post("/depth?<options..>", data = "<data>")]
 pub async fn handler(
     data: Data<'_>,

@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, Display};
+use schemars::JsonSchema;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, AsRefStr, Display)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, AsRefStr, Display, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum JobType {
@@ -22,7 +23,7 @@ impl JobType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, AsRefStr, Display)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, AsRefStr, Display, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum JobStatus {
@@ -33,8 +34,7 @@ pub enum JobStatus {
     Cancelled,
 }
 
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct JobMessage {
     pub job_id: uuid::Uuid,
     pub job_type: JobType,
@@ -42,7 +42,7 @@ pub struct JobMessage {
     pub options: JobOptions,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct JobOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_disparity: Option<u32>,

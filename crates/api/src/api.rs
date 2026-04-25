@@ -11,12 +11,7 @@ pub(crate) fn openapi_routes() -> Vec<Route> {
     openapi_get_routes![
         health_check::ping,
         health_check::stats,
-        health_check::uptime
-    ]
-}
-
-pub(crate) fn auth_routes() -> Vec<Route> {
-    routes![
+        health_check::uptime,
         auth::register_handler,
         auth::login_handler,
         auth::refresh_handler,
@@ -26,15 +21,18 @@ pub(crate) fn auth_routes() -> Vec<Route> {
         auth::create_key,
         auth::list_keys,
         auth::delete_key,
+        jobs::submit_convert::handler,
+        jobs::submit_depth::handler,
+        jobs::submit_compose::handler,
+        jobs::submit_depth_compose::handler,
+        jobs::get_job::handler,
+        jobs::list_jobs::handler,
+        jobs::cancel_job::handler,
+        jobs::download_result::handler,
+        tokens::balance::handler,
+        tokens::history::handler,
+        tokens::estimate::handler,
     ]
-}
-
-pub(crate) fn job_routes() -> Vec<Route> {
-    jobs::routes()
-}
-
-pub(crate) fn token_routes() -> Vec<Route> {
-    tokens::routes()
 }
 
 pub(crate) fn ui_routes() -> Vec<Route> {

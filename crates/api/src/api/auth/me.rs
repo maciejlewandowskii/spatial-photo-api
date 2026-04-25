@@ -3,11 +3,13 @@ use rocket::State;
 use shared::db::{self, PgPool};
 use shared::error::AppError;
 use serde::Serialize;
+use rocket_okapi::openapi;
+use schemars::JsonSchema;
 
 use crate::error::ApiError;
 use crate::guards::AuthUser;
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 pub struct UserResponse {
     pub id: String,
     pub email: String,
@@ -15,6 +17,7 @@ pub struct UserResponse {
     pub created_at: i64,
 }
 
+#[openapi(tag = "Auth")]
 #[get("/me")]
 pub async fn handler(
     user: AuthUser,
