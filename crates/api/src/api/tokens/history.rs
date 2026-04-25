@@ -10,10 +10,10 @@ pub struct TokenHistoryResponse {
     pub history: Vec<String>,
 }
 
-#[openapi(tag = "Tokens")]
+#[openapi(tag = "Tokens", tag = "Unimplemented")]
 #[get("/history")]
 pub async fn handler(_user: AuthUser) -> Result<Json<TokenHistoryResponse>, ApiError> {
-    // Implement database fetch for token history
+    // TODO: Implement database fetch for token history
     Ok(Json(TokenHistoryResponse {
         history: vec![],
     }))

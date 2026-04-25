@@ -87,3 +87,66 @@ The following environment variables are managed by the CDK stacks but can be cus
 - **Image Processing**: `image` crate and `libheif-rs`.
 - **Database**: `sqlx` with PostgreSQL on Aurora Serverless v2.
 - **Frontend**: HTMX, Tailwind CSS, and Tera Templates.
+
+## Development
+
+### 1. Local Setup
+
+Clone the repository and install dependencies:
+
+```bash
+# Install Rust dependencies
+cargo build
+
+# Install Infrastructure dependencies
+cd infra
+npm install
+```
+
+### 2. Local Infrastructure
+
+For local development, you'll need a PostgreSQL instance and AWS credentials with access to S3, SQS, and DynamoDB.
+
+Create a `.env` file in the project root:
+
+```env
+DATABASE_URL=postgres://user:pass@localhost:5432/spatial_api
+JWT_SECRET=your-local-secret
+S3_BUCKET=your-test-bucket
+SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/JobQueue.fifo
+DYNAMODB_TABLE=WsConnections
+WEBSOCKET_API_ENDPOINT=https://your-ws-api.execute-api.us-east-1.amazonaws.com/prod
+```
+
+### 3. Running Locally
+
+You can run the API server locally:
+
+```bash
+# Run API
+cd crates/api
+cargo run
+```
+
+The worker and websocket components are designed to run as AWS Lambda functions, but can be tested locally using `cargo lambda watch`.
+
+### 4. Code Quality
+
+Always run clippy and format your code before committing:
+
+```bash
+# Run Clippy
+cargo clippy --workspace -- -D warnings
+
+# Format Code
+cargo fmt --all
+
+# Run Tests
+cargo test --workspace
+```
+
+### 5. API Documentation
+
+When running locally, the OpenAPI documentation is available at:
+- Swagger UI: `http://localhost:8000/docs`
+- Scalar UI: `http://localhost:8000/docs` (custom UI integration)

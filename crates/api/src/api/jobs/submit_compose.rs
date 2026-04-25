@@ -11,7 +11,7 @@ use validator::Validate;
 use shared::error::AppError;
 use rocket_okapi::openapi;
 
-#[openapi(tag = "Jobs")]
+#[openapi(tag = "Jobs", tag = "Unimplemented")]
 #[post("/compose?<options..>", data = "<_data>")]
 pub async fn handler(
     _data: Data<'_>,
@@ -22,9 +22,10 @@ pub async fn handler(
     _sqs: &State<SqsState>,
 ) -> Result<Json<JobResponse>, ApiError> {
     options.validate().map_err(|e| AppError::Validation(e.to_string()))?;
-    
-    // Multipart implementation would go here
+
+    // TODO: Implement multipart composition from two images
     let _user = user;
-    
+
     Err(shared::error::AppError::Internal("multipart compose not yet implemented".into()).into())
 }
+

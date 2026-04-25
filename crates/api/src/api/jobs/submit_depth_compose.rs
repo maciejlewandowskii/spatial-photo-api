@@ -11,7 +11,7 @@ use validator::Validate;
 use shared::error::AppError;
 use rocket_okapi::openapi;
 
-#[openapi(tag = "Jobs")]
+#[openapi(tag = "Jobs", tag = "Unimplemented")]
 #[post("/depth-compose?<options..>", data = "<_data>")]
 pub async fn handler(
     _data: Data<'_>,
@@ -22,7 +22,9 @@ pub async fn handler(
     _sqs: &State<SqsState>,
 ) -> Result<Json<JobResponse>, ApiError> {
     options.validate().map_err(|e| AppError::Validation(e.to_string()))?;
-    let _user = user;
     
+    // TODO: Implement multipart composition from image and depth map
+    let _user = user;
+
     Err(shared::error::AppError::Internal("multipart depth-compose not yet implemented".into()).into())
 }
