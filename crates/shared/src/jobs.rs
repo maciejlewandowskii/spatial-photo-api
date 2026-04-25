@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
+use strum::{AsRefStr, Display};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, AsRefStr, Display)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum JobType {
     Full,
     DepthOnly,
@@ -18,19 +20,11 @@ impl JobType {
             JobType::DepthCompose => 50,
         }
     }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            JobType::Full => "full",
-            JobType::DepthOnly => "depth_only",
-            JobType::Compose => "compose",
-            JobType::DepthCompose => "depth_compose",
-        }
-    }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, AsRefStr, Display)]
 #[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 pub enum JobStatus {
     Pending,
     Processing,
@@ -39,19 +33,7 @@ pub enum JobStatus {
     Cancelled,
 }
 
-impl JobStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            JobStatus::Pending => "pending",
-            JobStatus::Processing => "processing",
-            JobStatus::Complete => "complete",
-            JobStatus::Failed => "failed",
-            JobStatus::Cancelled => "cancelled",
-        }
-    }
-}
 
-/// Parameters sent in the SQS message to the worker.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JobMessage {
     pub job_id: uuid::Uuid,
@@ -60,7 +42,6 @@ pub struct JobMessage {
     pub options: JobOptions,
 }
 
-/// Per-job processing options.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct JobOptions {
     #[serde(skip_serializing_if = "Option::is_none")]

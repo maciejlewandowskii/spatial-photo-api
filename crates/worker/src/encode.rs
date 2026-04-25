@@ -7,8 +7,8 @@ use image::RgbImage;
 pub fn write_spatial_heic(
     left: &RgbImage,
     right: &RgbImage,
-    _baseline: f32, // to be used for metadata
-    _fov: f32,      // to be used for metadata
+    _baseline: f32,
+    _fov: f32,
 ) -> Result<Vec<u8>, AppError> {
     let lib_heif = LibHeif::new();
     let mut context = HeifContext::new()
@@ -20,18 +20,14 @@ pub fn write_spatial_heic(
     encoder.set_quality(EncoderQuality::LossLess)
         .map_err(|e| AppError::Internal(format!("set encoder quality: {e}")))?;
 
-    // 1. Add left image as primary
     let left_heif = rgb_to_heif(left)?;
     context.encode_image(&left_heif, &mut encoder, None)
         .map_err(|e| AppError::Internal(format!("encode left image: {e}")))?;
 
-    // 2. Add right image
     let right_heif = rgb_to_heif(right)?;
     context.encode_image(&right_heif, &mut encoder, None)
         .map_err(|e| AppError::Internal(format!("encode right image: {e}")))?;
 
-    // TODO: Add Apple stereo metadata
-    
     let result = context.write_to_bytes()
         .map_err(|e| AppError::Internal(format!("write heif to bytes: {e}")))?;
 

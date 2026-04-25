@@ -77,6 +77,7 @@ async fn main() -> Result<(), LambdaError> {
         .mount("/", api::openapi_routes())
         .mount("/auth", api::auth_routes())
         .mount("/jobs", api::job_routes())
+        .mount("/tokens", api::token_routes())
         .mount("/docs", routes![scalar_docs_ui]);
 
     if is_running_on_lambda() {

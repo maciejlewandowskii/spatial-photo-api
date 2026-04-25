@@ -46,10 +46,11 @@ pub async fn create(pool: &PgPool, params: CreateJob<'_>) -> Result<Job, AppErro
            (user_id, job_type, tokens_charged, input_s3_key, left_s3_key, right_s3_key,
             depth_s3_key, options, expires_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *"#,
-    )
-    .bind(params.user_id)
-    .bind(params.job_type.as_str())
-    .bind(params.tokens_charged)
+           )
+           .bind(params.user_id)
+           .bind(params.job_type.as_ref())
+           .bind(params.tokens_charged)
+
     .bind(params.input_s3_key)
     .bind(params.left_s3_key)
     .bind(params.right_s3_key)
@@ -99,7 +100,7 @@ pub async fn set_status(
         "UPDATE jobs SET status = $1, error = $2, updated_at = NOW(), completed_at = $3
          WHERE id = $4",
     )
-    .bind(status.as_str())
+    .bind(status.as_ref())
     .bind(error)
     .bind(completed_at)
     .bind(id)
