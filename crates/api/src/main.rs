@@ -7,6 +7,7 @@ use rocket::time::OffsetDateTime;
 use shared::db::PgPool;
 
 use crate::api::health_check::LimitsInfo;
+use crate::api::jobs::{S3State, SqsState};
 use crate::docs::scalar_docs_ui::scalar_docs_ui;
 use crate::guards::JwtSecret;
 
@@ -39,6 +40,10 @@ async fn main() -> Result<(), LambdaError> {
         std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable must be set");
     let jwt_secret =
         std::env::var("JWT_SECRET").expect("JWT_SECRET environment variable must be set");
+    let s3_bucket =
+        std::env::var("S3_BUCKET").expect("S3_BUCKET environment variable must be set");
+    let queue_url =
+        std::env::var("SQS_QUEUE_URL").expect("SQS_QUEUE_URL environment variable must be set");
 
     let pool = PgPool::connect(&db_url)
         .await
@@ -51,11 +56,24 @@ async fn main() -> Result<(), LambdaError> {
 
     tracing::info!("database ready");
 
+    let aws_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+    let s3_state = S3State {
+        client: aws_sdk_s3::Client::new(&aws_config),
+        bucket: s3_bucket,
+    };
+    let sqs_state = SqsState {
+        client: aws_sdk_sqs::Client::new(&aws_config),
+        queue_url,
+    };
+
     let rocket = rocket::build()
         .manage(pool)
         .manage(JwtSecret(jwt_secret))
+        .manage(s3_state)
+        .manage(sqs_state)
         .mount("/", api::openapi_routes())
         .mount("/auth", api::auth_routes())
+        .mount("/jobs", api::job_routes())
         .mount("/docs", routes![scalar_docs_ui]);
 
     if is_running_on_lambda() {

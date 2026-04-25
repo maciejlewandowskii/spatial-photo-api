@@ -24,4 +24,9 @@ tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
 time = { workspace = true }
 sqlx = { workspace = true }
+aws-config = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+aws-sdk-sqs = { workspace = true }
 argon2 = "0.5"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "tiff", "bmp", "gif"] }
+tokio = { workspace = true }
