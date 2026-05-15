@@ -26,8 +26,12 @@ pub async fn dashboard(user: AuthUser) -> Template {
     Template::render("dashboard", context! { user })
 }
 
+#[rocket_okapi::openapi(skip)]
 #[get("/jobs/list/html")]
-pub async fn job_list_html(user: AuthUser, pool: &rocket::State<PgPool>) -> Template {
-    let jobs = db::job::list_for_user(pool, user.user_id, 20, 0).await.unwrap_or_default();
-    Template::render("job_list_partial", context! { jobs })
+pub async fn job_list_html(user: AuthUser, pool: &rocket::State<PgPool>) -> Result<Template, crate::error::ApiError> {
+    let jobs = db::job::list_for_user(pool, user.user_id, 20, 0).await.map_err(|e| {
+        tracing::error!(error = %e, "failed to list jobs for user");
+        e
+    })?;
+    Ok(Template::render("job_list_partial", context! { jobs }))
 }
