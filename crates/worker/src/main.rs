@@ -56,7 +56,7 @@ async fn main() -> Result<(), LambdaError> {
         .init();
 
     let db_url = std::env::var("DATABASE_URL").map_err(|_| LambdaError::from("DATABASE_URL must be set"))?;
-    let s3_bucket = std::env::var("S3_BUCKET").map_err(|_| LambdaError::from("S3_BUCKET must be set"))?;
+    let s3_bucket = std::env::var("S3_BUCKET").map_err(|_| LambdaError::from("S3_Bust be set"))?;
     let ddb_table = std::env::var("DYNAMODB_TABLE").map_err(|_| LambdaError::from("DYNAMODB_TABLE must be set"))?;
     let ws_api_endpoint =
         std::env::var("WEBSOCKET_API_ENDPOINT").map_err(|_| LambdaError::from("WEBSOCKET_API_ENDPOINT must be set"))?;
@@ -70,7 +70,11 @@ async fn main() -> Result<(), LambdaError> {
         .await
         .map_err(|e| LambdaError::from(format!("failed to connect to database: {e}")))?;
 
-    let aws_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+    let mut aws_config_builder = aws_config::defaults(aws_config::BehaviorVersion::latest());
+    if let Ok(endpoint) = std::env::var("AWS_ENDPOINT_URL") {
+        aws_config_builder = aws_config_builder.endpoint_url(endpoint);
+    }
+    let aws_config = aws_config_builder.load().await;
 
     let credentials = aws_config
         .credentials_provider()
@@ -79,7 +83,13 @@ async fn main() -> Result<(), LambdaError> {
         .await
         .map_err(|e| LambdaError::from(format!("failed to resolve AWS credentials: {e}")))?;
 
-    let s3 = aws_sdk_s3::Client::new(&aws_config);
+    let s3 = {
+        let mut builder = aws_sdk_s3::config::Builder::from(&aws_config);
+        if std::env::var("AWS_ENDPOINT_URL").is_ok() {
+            builder = builder.force_path_style(true);
+        }
+        aws_sdk_s3::Client::from_conf(builder.build())
+    };
     let sqs = aws_sdk_sqs::Client::new(&aws_config);
     let ddb = aws_sdk_dynamodb::Client::new(&aws_config);
 
@@ -92,13 +102,27 @@ async fn main() -> Result<(), LambdaError> {
         ddb_table.clone(),
     );
 
-    let depth_estimator =
-        depth::DepthEstimator::load(&depth_model_path)
-            .map_err(|e| LambdaError::from(format!("failed to load depth model: {e}")))?;
+    let depth_estimator = match depth::DepthEstimator::load(&depth_model_path) {
+        Ok(e) => {
+            tracing::info!(path = %depth_model_path, "depth model loaded");
+            Some(e)
+        }
+        Err(e) => {
+            tracing::warn!(path = %depth_model_path, error = %e, "depth model not found — depth jobs will fail");
+            None
+        }
+    };
 
-    let stereo_generator =
-        warp::StereoGenerator::load(&lama_model_path)
-            .map_err(|e| LambdaError::from(format!("failed to load lama model: {e}")))?;
+    let stereo_generator = match warp::StereoGenerator::load(&lama_model_path) {
+        Ok(g) => {
+            tracing::info!(path = %lama_model_path, "lama model loaded");
+            Some(g)
+        }
+        Err(e) => {
+            tracing::warn!(path = %lama_model_path, error = %e, "lama model not found — stereo jobs will fail");
+            None
+        }
+    };
 
     let state = AppState {
         pool,
@@ -109,8 +133,44 @@ async fn main() -> Result<(), LambdaError> {
         stereo_generator,
     };
 
-    // SQS client kept for potential future use (dead-letter, visibility timeout extension)
-    let _ = sqs;
+    if std::env::var("LOCAL_POLL").is_ok() {
+        let queue_url = std::env::var("SQS_QUEUE_URL").map_err(|_| LambdaError::from("SQS_QUEUE_URL must be set for local polling"))?;
+        tracing::info!(queue_url = %queue_url, "starting local SQS poller");
+        
+        loop {
+            let output = sqs.receive_message()
+                .queue_url(&queue_url)
+                .max_number_of_messages(1)
+                .wait_time_seconds(20)
+                .send()
+                .await
+                .map_err(|e| LambdaError::from(format!("SQS receive: {e}")))?;
 
-    lambda_runtime::run(service_fn(|event| handler(event, &state))).await
+            for message in output.messages() {
+                if let Some(body) = message.body() {
+                    match serde_json::from_str::<JobMessage>(body) {
+                        Ok(msg) => {
+                            let job_id = msg.job_id;
+                            if let Err(e) = pipeline::process(msg, &state).await {
+                                tracing::error!(job_id = %job_id, error = %e, "job processing failed");
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(body = %body, error = %e, "failed to parse SQS record");
+                        }
+                    }
+                }
+                
+                if let Some(receipt_handle) = message.receipt_handle() {
+                    let _ = sqs.delete_message()
+                        .queue_url(&queue_url)
+                        .receipt_handle(receipt_handle)
+                        .send()
+                        .await;
+                }
+            }
+        }
+    } else {
+        lambda_runtime::run(service_fn(|event| handler(event, &state))).await
+    }
 }

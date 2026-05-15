@@ -18,5 +18,5 @@ pub struct SqsState {
     pub queue_url: String,
 }
 
-pub const MAX_IMAGE_BYTES: u64 = 10 * 1024 * 1024;
+pub const MAX_IMAGE_BYTES: u64 = 50 * 1024 * 1024;
 pub const MAX_DIMENSION: u32 = 8192;

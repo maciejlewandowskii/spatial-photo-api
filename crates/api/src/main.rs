@@ -76,9 +76,21 @@ pub async fn rocket() -> Result<rocket::Rocket<rocket::Build>, LambdaError> {
 
     tracing::info!("database ready");
 
-    let aws_config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+    let mut aws_config_builder = aws_config::defaults(aws_config::BehaviorVersion::latest());
+    if let Ok(endpoint) = std::env::var("AWS_ENDPOINT_URL") {
+        aws_config_builder = aws_config_builder.endpoint_url(endpoint);
+    }
+    let aws_config = aws_config_builder.load().await;
+
+    let s3_client = {
+        let mut builder = aws_sdk_s3::config::Builder::from(&aws_config);
+        if std::env::var("AWS_ENDPOINT_URL").is_ok() {
+            builder = builder.force_path_style(true);
+        }
+        aws_sdk_s3::Client::from_conf(builder.build())
+    };
     let s3_state = S3State {
-        client: aws_sdk_s3::Client::new(&aws_config),
+        client: s3_client,
         bucket: s3_bucket,
     };
     let sqs_state = SqsState {
@@ -87,6 +99,20 @@ pub async fn rocket() -> Result<rocket::Rocket<rocket::Build>, LambdaError> {
     };
 
     let mut figment = rocket::Config::figment();
+
+    // Allow up to 50 MiB uploads — the application-layer cap is 50 MiB, but
+    // Rocket's default multipart limit (1 MiB) would reject large files first.
+    {
+        use rocket::data::ToByteUnit;
+        figment = figment.merge((
+            "limits",
+            rocket::data::Limits::default()
+                .limit("file", 50_u64.mebibytes())
+                .limit("data-form", 50_u64.mebibytes())
+                .limit("form", 50_u64.mebibytes())
+                .limit("bytes", 50_u64.mebibytes()),
+        ));
+    }
 
     if !is_running_on_lambda() {
         if std::path::Path::new("crates/api/templates").exists() {
@@ -103,6 +129,6 @@ pub async fn rocket() -> Result<rocket::Rocket<rocket::Build>, LambdaError> {
         .manage(sqs_state)
         .attach(Template::fairing())
         .mount("/", api::ui_routes())
-        .mount("/", api::openapi_routes())
+        .mount("/api", api::openapi_routes())
         .mount("/docs", routes![scalar_docs_ui]))
 }
