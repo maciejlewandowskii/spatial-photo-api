@@ -6,6 +6,36 @@ use std::sync::Mutex;
 
 use crate::depth::DepthMap;
 
+fn pixel_mean(img: &RgbImage) -> f32 {
+    let sum: f32 = img.pixels().map(|p| p[0] as f32).sum();
+    sum / img.pixels().count() as f32
+}
+
+/// Simple two-pass scanline hole fill.  Holes (mask == 255) are filled with
+/// the nearest non-hole neighbour on the same row.  Works well for the
+/// thin disocclusion strips produced by DIBR.
+fn fill_holes_scanline(image: &mut RgbImage, mask: &ImageBuffer<Luma<u8>, Vec<u8>>) {
+    let (width, height) = image.dimensions();
+    for y in 0..height {
+        let mut last = image::Rgb([0u8, 0, 0]);
+        for x in 0..width {
+            if mask.get_pixel(x, y)[0] > 128 {
+                image.put_pixel(x, y, last);
+            } else {
+                last = *image.get_pixel(x, y);
+            }
+        }
+        let mut last = image::Rgb([0u8, 0, 0]);
+        for x in (0..width).rev() {
+            if mask.get_pixel(x, y)[0] > 128 {
+                image.put_pixel(x, y, last);
+            } else {
+                last = *image.get_pixel(x, y);
+            }
+        }
+    }
+}
+
 pub struct StereoGenerator {
     lama_session: Mutex<Session>,
 }
@@ -23,7 +53,7 @@ impl StereoGenerator {
     }
 
     /// Generates a stereo pair (left, right) from a mono image and depth map.
-    /// Uses DIBR for initial warping and LaMa for inpainting holes.
+    /// Uses DIBR for initial warping, then LaMa (with scanline fallback) for holes.
     pub fn generate_stereo(
         &self,
         image: &DynamicImage,
@@ -32,12 +62,37 @@ impl StereoGenerator {
     ) -> Result<(RgbImage, RgbImage), AppError> {
         let left = image.to_rgb8();
 
-        // 1. Warp right image using DIBR
         let (mut right_warped, mask) = self.warp_dibr(&left, depth, max_disparity);
 
-        // 2. Inpaint holes in right image using LaMa
-        self.inpaint(&mut right_warped, &mask)?;
+        let hole_count = mask.pixels().filter(|p| p[0] > 128).count();
+        let warped_mean = pixel_mean(&right_warped);
+        tracing::info!(warped_mean, hole_count, width = left.width(), height = left.height(), "DIBR stats");
 
+        if hole_count == 0 {
+            tracing::info!("no holes — skipping inpainting");
+            return Ok((left, right_warped));
+        }
+
+        match self.inpaint(&mut right_warped, &mask) {
+            Ok(()) => {
+                let after_mean = pixel_mean(&right_warped);
+                tracing::info!(warped_mean, after_mean, "after LaMa inpaint");
+                let bad = after_mean < 2.0 || after_mean > 250.0 || (after_mean - warped_mean).abs() > 100.0;
+                if bad {
+                    tracing::warn!(warped_mean, after_mean, "LaMa output looks degenerate — using scanline fill instead");
+                    let (mut fallback, _) = self.warp_dibr(&left, depth, max_disparity);
+                    fill_holes_scanline(&mut fallback, &mask);
+                    right_warped = fallback;
+                }
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "LaMa inpaint failed — using scanline fill");
+                fill_holes_scanline(&mut right_warped, &mask);
+            }
+        }
+
+        let final_mean = pixel_mean(&right_warped);
+        tracing::info!(final_mean, "final right eye mean");
         Ok((left, right_warped))
     }
 
@@ -51,14 +106,10 @@ impl StereoGenerator {
         let mut right = RgbImage::new(width, height);
         let mut mask = ImageBuffer::<Luma<u8>, Vec<u8>>::new(width, height);
 
-        // Initialise mask with 255 (hole)
         for p in mask.pixels_mut() {
             *p = Luma([255]);
         }
 
-        // DIBR: shift pixels to the right for the right eye
-        // disparity = depth * max_disparity
-        // We iterate and place pixels, keeping track of depth to handle occlusions (z-buffer)
         let mut z_buffer = vec![f32::MIN; (width * height) as usize];
 
         for y in 0..height {
@@ -87,6 +138,8 @@ impl StereoGenerator {
         image: &mut RgbImage,
         mask: &ImageBuffer<Luma<u8>, Vec<u8>>,
     ) -> Result<(), AppError> {
+        let pre_mean = pixel_mean(image);
+        tracing::debug!(pre_mean, "inpaint: image mean before LaMa");
         let (orig_w, orig_h) = image.dimensions();
         let target_sz = 512;
 
@@ -104,7 +157,6 @@ impl StereoGenerator {
         let img_rgb = resized_img.to_rgb8();
         let mask_luma = resized_mask.to_luma8();
 
-        // Build tensors
         let mut img_tensor = Array4::<f32>::zeros([1, 3, target_sz as usize, target_sz as usize]);
         let mut mask_tensor = Array4::<f32>::zeros([1, 1, target_sz as usize, target_sz as usize]);
 
@@ -138,20 +190,61 @@ impl StereoGenerator {
             .map_err(|e| AppError::Internal(format!("extract lama tensor: {e}")))?;
 
         let (shape, data) = raw;
+        tracing::info!(
+            ndim = shape.len(),
+            d0 = shape.get(0).copied().unwrap_or(0),
+            d1 = shape.get(1).copied().unwrap_or(0),
+            d2 = shape.get(2).copied().unwrap_or(0),
+            d3 = shape.get(3).copied().unwrap_or(0),
+            data_len = data.len(),
+            "LaMa raw output shape"
+        );
+
+        if shape.len() < 4 {
+            return Err(AppError::Internal(format!(
+                "LaMa output has {} dims, expected 4",
+                shape.len()
+            )));
+        }
+
         // LaMa output is [1, 3, H, W]
         let h = shape[2] as usize;
         let w = shape[3] as usize;
         let plane_size = h * w;
 
+        let (data_min, data_max) = data
+            .iter()
+            .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), &v| (lo.min(v), hi.max(v)));
+        let data_mean = data.iter().sum::<f32>() / data.len().max(1) as f32;
+        tracing::info!(data_min, data_max, data_mean, "LaMa output value stats");
+
+        // If values are outside [0,1] (e.g. model outputs [0,255] or arbitrary scale),
+        // normalise by the observed range so the result is always [0,1].
+        let out_of_range = data_max > 1.5 || data_min < -0.5;
+        if out_of_range {
+            tracing::warn!(data_min, data_max, "LaMa output outside [0,1] — normalising");
+        }
+        let norm_range = (data_max - data_min).max(1e-6);
+        let scale = move |v: f32| -> u8 {
+            if out_of_range {
+                ((v - data_min) / norm_range * 255.0).clamp(0.0, 255.0) as u8
+            } else {
+                (v.clamp(0.0, 1.0) * 255.0) as u8
+            }
+        };
+
+        // Composite: only replace hole pixels with LaMa output; keep known pixels from
+        // the warped image unchanged (avoids LaMa colour drift on non-occluded areas).
         let inpainted_resized = RgbImage::from_fn(target_sz, target_sz, |x, y| {
+            let is_hole = mask_luma.get_pixel(x, y)[0] > 128;
+            if !is_hole {
+                return *img_rgb.get_pixel(x, y);
+            }
             let offset = y as usize * w + x as usize;
-            let r_idx = offset;
-            let g_idx = plane_size + offset;
-            let b_idx = 2 * plane_size + offset;
             Rgb([
-                (data[r_idx].clamp(0.0, 1.0) * 255.0) as u8,
-                (data[g_idx].clamp(0.0, 1.0) * 255.0) as u8,
-                (data[b_idx].clamp(0.0, 1.0) * 255.0) as u8,
+                scale(data[offset]),
+                scale(data[plane_size + offset]),
+                scale(data[2 * plane_size + offset]),
             ])
         });
 

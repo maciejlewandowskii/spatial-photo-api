@@ -18,10 +18,10 @@ pub struct DepthEstimator {
 
 impl DepthEstimator {
     pub fn load(model_path: &str) -> Result<Self, AppError> {
-        let input_size = if model_path.contains("depth_anything") {
-            DEPTH_ANYTHING_INPUT_SIZE
-        } else {
+        let input_size = if model_path.contains("depthpro") || model_path.contains("depth_pro") {
             DEPTHPRO_INPUT_SIZE
+        } else {
+            DEPTH_ANYTHING_INPUT_SIZE
         };
 
         let session = Session::builder()
@@ -53,7 +53,7 @@ impl DepthEstimator {
 
         let mut session = self.session.lock().map_err(|_| AppError::Internal("depth session lock failed".to_string()))?;
         let outputs = session
-            .run(inputs!["image" => ort_tensor])
+            .run(inputs!["pixel_values" => ort_tensor])
             .map_err(|e| AppError::Internal(format!("depth inference: {e}")))?;
 
         let raw = outputs[0]
@@ -69,7 +69,6 @@ impl DepthEstimator {
         let range = (max - min).max(1e-6);
         let normalised: Vec<f32> = flat.iter().map(|&v| (v - min) / range).collect();
 
-        // Encode at model resolution then resize to original
         let model_gray = GrayImage::from_fn(sz as u32, sz as u32, |x, y| {
             let v = normalised[y as usize * sz + x as usize];
             image::Luma([(v * 255.0) as u8])
@@ -91,6 +90,5 @@ impl DepthEstimator {
 pub struct DepthMap {
     /// Depth values in [0.0, 1.0]; higher = closer to camera.
     pub data: Vec<f32>,
-    /// 8-bit grayscale encoding of the depth map, ready to write as PNG.
     pub gray: GrayImage,
 }
