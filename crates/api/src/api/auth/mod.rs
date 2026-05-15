@@ -17,7 +17,6 @@ pub use keys::list as list_keys;
 pub use keys::delete as delete_key;
 
 // Re-export the okapi functions for the routes! macro in api.rs
-// rocket_okapi's openapi_get_routes! needs these to be in the same module as the handlers.
 pub use register::okapi_add_operation_for_handler_ as okapi_add_operation_for_register_handler_;
 pub use login::okapi_add_operation_for_handler_ as okapi_add_operation_for_login_handler_;
 pub use refresh::okapi_add_operation_for_handler_ as okapi_add_operation_for_refresh_handler_;

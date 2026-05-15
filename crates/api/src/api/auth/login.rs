@@ -11,7 +11,7 @@ use crate::error::ApiError;
 use crate::guards::JwtSecret;
 use super::utils::{verify_password, issue_auth_response, AuthResponse};
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Deserialize, JsonSchema, FromForm)]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
