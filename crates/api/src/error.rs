@@ -8,6 +8,17 @@ use rocket_okapi::response::OpenApiResponderInner;
 use rocket_okapi::gen::OpenApiGenerator;
 use rocket_okapi::okapi::openapi3::{Responses, RefOr, Response as OpenApiResponse, MediaType};
 
+pub struct HtmxRedirect(pub String);
+
+impl<'r> rocket::response::Responder<'r, 'static> for HtmxRedirect {
+    fn respond_to(self, _req: &'r rocket::Request<'_>) -> rocket::response::Result<'static> {
+        Response::build()
+            .status(Status::Ok)
+            .header(rocket::http::Header::new("HX-Redirect", self.0))
+            .ok()
+    }
+}
+
 #[derive(Debug)]
 pub struct ApiError(pub AppError);
 

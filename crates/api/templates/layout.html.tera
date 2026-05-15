@@ -28,7 +28,7 @@
     </main>
 
     <footer class="mt-12 p-8 text-center text-gray-500 border-t">
-        &copy; 2026 Spatial Photo API. Built with Rust, Rocket & HTMX.
+        &copy; 2026 Spatial Photo API
     </footer>
 </body>
 </html>
