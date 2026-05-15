@@ -4,3 +4,7 @@
 *.env.local
 /crates/worker/models/
 infra/node_modules
+infra/cdk.out/
+models/
+*.heic
+*.HEIC

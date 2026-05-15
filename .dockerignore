@@ -1,0 +1,10 @@
+target
+node_modules
+infra/node_modules
+infra/cdk.out
+.git
+.idea
+*.heic
+IMG_6868 2.HEIC
+models
+crates/worker/models
