@@ -50,21 +50,13 @@ pub struct ValidatedImage {
     pub content_type: &'static str,
 }
 
-pub async fn read_and_validate_image(data: Data<'_>) -> Result<ValidatedImage, AppError> {
-    let bytes = data
-        .open(MAX_IMAGE_BYTES.bytes())
-        .into_bytes()
-        .await
-        .map_err(|e| AppError::Internal(format!("read upload: {e}")))?;
-
-    if !bytes.is_complete() {
-        return Err(AppError::Validation(format!(
+pub fn validate_image_bytes(raw: Vec<u8>) -> Result<ValidatedImage, AppError> {
+    if raw.len() > MAX_IMAGE_BYTES as usize {
+         return Err(AppError::Validation(format!(
             "image exceeds {:.0} MB limit",
             MAX_IMAGE_BYTES as f64 / 1_048_576.0
         )));
     }
-
-    let raw = bytes.into_inner();
 
     let fmt = image::guess_format(&raw)
         .map_err(|_| AppError::Validation("unrecognised image format".into()))?;
@@ -100,6 +92,84 @@ pub async fn read_and_validate_image(data: Data<'_>) -> Result<ValidatedImage, A
         extension,
         content_type,
     })
+}
+
+pub async fn read_and_validate_image(data: Data<'_>) -> Result<ValidatedImage, AppError> {
+    let bytes = data
+        .open(MAX_IMAGE_BYTES.bytes())
+        .into_bytes()
+        .await
+        .map_err(|e| AppError::Internal(format!("read upload: {e}")))?;
+
+    if !bytes.is_complete() {
+        return Err(AppError::Validation(format!(
+            "image exceeds {:.0} MB limit",
+            MAX_IMAGE_BYTES as f64 / 1_048_576.0
+        )));
+    }
+
+    validate_image_bytes(bytes.into_inner())
+}
+
+pub async fn dispatch_single_image_from_bytes(
+    bytes: Vec<u8>,
+    options: ConvertOptions,
+    job_type: JobType,
+    user: &AuthUser,
+    pool: &PgPool,
+    s3: &S3State,
+    sqs: &SqsState,
+) -> Result<JobResponse, ApiError> {
+    let validated = validate_image_bytes(bytes)?;
+
+    let cost = job_type.token_cost();
+    db::user::deduct_tokens(pool, user.user_id, cost)
+        .await?
+        .ok_or(AppError::InsufficientTokens)?;
+
+    let job_options = JobOptions {
+        max_disparity: options.max_disparity,
+        model: options.model,
+        horizontal_fov: options.horizontal_fov,
+        baseline_mm: options.baseline_mm,
+    };
+
+    let job_id = Uuid::new_v4();
+    let input_key = format!("uploads/{job_id}/input.{}", validated.extension);
+
+    let job = db::job::create(
+        pool,
+        db::job::CreateJob {
+            user_id: user.user_id,
+            job_type: &job_type,
+            tokens_charged: cost,
+            input_s3_key: Some(&input_key),
+            left_s3_key: None,
+            right_s3_key: None,
+            depth_s3_key: None,
+            options: serde_json::to_value(&job_options).map_err(|e| AppError::Internal(format!("serialize options: {e}")))?,
+        },
+    )
+    .await?;
+
+    if let Err(e) = storage::upload(&s3.client, &s3.bucket, &input_key, validated.bytes, validated.content_type).await {
+        let _ = db::job::set_status(pool, job.id, &shared::jobs::JobStatus::Failed, Some(&e.to_string())).await;
+        return Err(e.into());
+    }
+
+    let msg = JobMessage {
+        job_id: job.id,
+        job_type,
+        user_id: user.user_id,
+        options: job_options,
+    };
+
+    if let Err(e) = queue::enqueue(&sqs.client, &sqs.queue_url, &msg).await {
+        let _ = db::job::set_status(pool, job.id, &shared::jobs::JobStatus::Failed, Some(&e.to_string())).await;
+        return Err(e.into());
+    }
+
+    Ok(job_to_response(job, None))
 }
 
 pub async fn dispatch_single_image(
